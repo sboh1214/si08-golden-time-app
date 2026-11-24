@@ -50,18 +50,31 @@
 
 ## 화면 미리보기
 
-웹 미리보기(390×844)로 캡처한 화면입니다. 표시된 환자·병원은 모두 내장 데모 서버의 **가상 샘플 데이터**입니다. 과업별 전체 캡처는 [납품 내역서](./docs/DELIVERABLES.md)와 [`docs/screenshots/`](./docs/screenshots/)에 있습니다.
+웹 미리보기(390×844)로 캡처한 화면입니다. 표시된 환자·병원은 모두 내장 데모 서버의 **가상 샘플 데이터**입니다. 과업별 전체 캡처와 iOS 시뮬레이터·Android 에뮬레이터 구동 화면은 [납품 내역서](./docs/DELIVERABLES.md#구동-확인--ios-시뮬레이터--android-에뮬레이터)와 [`docs/screenshots/`](./docs/screenshots/) (`web/` · `ios/` · `android/`)에 있습니다.
 
 <table>
 <tr>
-<td align="center"><img src="./docs/screenshots/02-home.png" width="180" alt="홈"><br><sub>홈</sub></td>
-<td align="center"><img src="./docs/screenshots/05-upload-progress.png" width="180" alt="AI 처리 단계"><br><sub>① 등록 · AI 처리 단계</sub></td>
-<td align="center"><img src="./docs/screenshots/07-result-items.png" width="180" alt="정리 결과"><br><sub>② 정리 결과</sub></td>
+<td align="center"><img src="./docs/screenshots/web/02-home.png" width="180" alt="홈"><br><sub>홈</sub></td>
+<td align="center"><img src="./docs/screenshots/web/05-upload-progress.png" width="180" alt="AI 처리 단계"><br><sub>① 등록 · AI 처리 단계</sub></td>
+<td align="center"><img src="./docs/screenshots/web/07-result-items.png" width="180" alt="정리 결과"><br><sub>② 정리 결과</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="./docs/screenshots/08-explanation.png" width="180" alt="원문 대조 해설"><br><sub>③ 원문 대조 해설</sub></td>
-<td align="center"><img src="./docs/screenshots/11-lab-trend.png" width="180" alt="수치 변화"><br><sub>④ 검사 수치 변화</sub></td>
-<td align="center"><img src="./docs/screenshots/14-timeline.png" width="180" alt="타임라인"><br><sub>⑤ 건강 타임라인</sub></td>
+<td align="center"><img src="./docs/screenshots/web/08-explanation.png" width="180" alt="원문 대조 해설"><br><sub>③ 원문 대조 해설</sub></td>
+<td align="center"><img src="./docs/screenshots/web/11-lab-trend.png" width="180" alt="수치 변화"><br><sub>④ 검사 수치 변화</sub></td>
+<td align="center"><img src="./docs/screenshots/web/14-timeline.png" width="180" alt="타임라인"><br><sub>⑤ 건강 타임라인</sub></td>
+</tr>
+</table>
+
+**iOS 시뮬레이터 · Android 에뮬레이터 구동 화면**
+
+<table>
+<tr>
+<td align="center"><img src="./docs/screenshots/ios/02-home.png" width="150" alt="iOS 홈"><br><sub>iOS · 홈</sub></td>
+<td align="center"><img src="./docs/screenshots/ios/08-explanation.png" width="150" alt="iOS 원문 대조 해설"><br><sub>iOS · ③ 원문 대조 해설</sub></td>
+<td align="center"><img src="./docs/screenshots/ios/11-lab-trend.png" width="150" alt="iOS 수치 변화"><br><sub>iOS · ④ 수치 변화</sub></td>
+<td align="center"><img src="./docs/screenshots/android/04-upload-review.png" width="150" alt="Android 정보 입력"><br><sub>Android · ① 정보 입력</sub></td>
+<td align="center"><img src="./docs/screenshots/android/07-result-items.png" width="150" alt="Android 정리 결과"><br><sub>Android · ② 정리 결과</sub></td>
+<td align="center"><img src="./docs/screenshots/android/14-timeline.png" width="150" alt="Android 타임라인"><br><sub>Android · ⑤ 타임라인</sub></td>
 </tr>
 </table>
 

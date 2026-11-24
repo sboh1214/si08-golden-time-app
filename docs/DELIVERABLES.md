@@ -21,14 +21,14 @@
 
 | 구분 | 내용 |
 | --- | --- |
-| 구현 내용 | • 등록 방법 선택: **카메라로 촬영 · 사진에서 선택(여러 장) · PDF 파일 선택**, 카메라 권한 거부 시 안내와 '설정 열기'<br>• 미리보기: 페이지 썸네일, 페이지 추가·빼기·앞뒤로 옮기기 (진료기록 1건당 최대 10페이지, 파일당 20MB 초과분 제외 안내)<br>• 기록 정보 입력: 기록 종류·병원 이름(필수)·진료일(필수)·진료과·제목, 입력 검증과 오류 문구, 제목 비우면 자동 생성<br>• 업로드 진행률 → AI 처리 단계(업로드 → 글자 인식 → 항목 정리 → 쉬운 해설) 실시간 표시 → 완료 요약 → '정리 결과 보기'<br>• 분석 실패 시 사유 안내와 '다시 분석하기' / 등록 방법에 맞춘 새로 등록 버튼('다시 촬영하기' · '다른 사진 고르기' · '다른 파일 고르기'), 처리 중 '닫고 기다리기'<br>• Android 에서 촬영 중 시스템이 앱 화면을 종료해도, 다시 등록 화면을 열면 찍은 사진으로 이어서 등록 |
+| 구현 내용 | • 등록 방법 선택: **카메라로 촬영 · 사진에서 선택(여러 장) · PDF 파일 선택**, 카메라 권한 거부 시 안내와 '설정 열기'<br>• 미리보기: 페이지 썸네일, 페이지 추가·빼기·앞뒤로 옮기기 (진료기록 1건당 최대 10페이지, 파일당 20MB 초과분 제외 안내)<br>• 기록 정보 입력: 기록 종류·병원 이름(필수)·진료일(필수)·진료과·제목, 입력 검증과 오류 문구, 제목 비우면 자동 생성, **최근 방문한 병원 빠른 선택**(병원 이름·진료과 자동 입력)<br>• 업로드 진행률 → AI 처리 단계(업로드 → 글자 인식 → 항목 정리 → 쉬운 해설) 실시간 표시 → 완료 요약 → '정리 결과 보기'<br>• 분석 실패 시 사유 안내와 '다시 분석하기' / 등록 방법에 맞춘 새로 등록 버튼('다시 촬영하기' · '다른 사진 고르기' · '다른 파일 고르기'), 처리 중 '닫고 기다리기'<br>• Android 에서 촬영 중 시스템이 앱 화면을 종료해도, 다시 등록 화면을 열면 찍은 사진으로 이어서 등록 |
 | 화면 | `src/app/upload/index.tsx` (등록 방법) · `src/app/upload/review.tsx` (미리보기·정보 입력) · `src/app/upload/progress.tsx` (진행·결과) |
 | 주요 소스 | `src/components/upload/*` · `src/lib/file-pickers.ts` · `src/store/upload-draft.ts` · `src/hooks/api.ts` (`useUploadDocument`, `useDocument`) |
 | 검수 방법 | 1. 홈 › **진료기록 등록하기** › **사진에서 선택** 으로 사진 2장 이상 선택<br>2. 미리보기에서 페이지 순서를 옮기고 한 장을 빼 본다<br>3. 병원 이름을 비운 채 **AI 해설 받기** → 입력 오류 안내 확인 → 병원 이름 입력 후 다시 **AI 해설 받기**<br>4. 업로드 진행률과 처리 단계가 차례로 바뀌고 '해설이 완성됐어요' 요약이 나오는지 확인 → **정리 결과 보기**<br>5. (웹·시뮬레이터에서는 **PDF 파일 선택**으로도 확인) |
 
 **화면** (웹 미리보기 캡처 · 가상 환자 샘플 데이터)
 
-<table><tr><td align="center"><img src="./screenshots/03-upload-source.png" width="200" alt="등록 방법 선택"><br><sub>등록 방법 선택</sub></td><td align="center"><img src="./screenshots/04-upload-review.png" width="200" alt="미리보기·정보 입력"><br><sub>미리보기·정보 입력</sub></td><td align="center"><img src="./screenshots/05-upload-progress.png" width="200" alt="AI 처리 단계"><br><sub>AI 처리 단계</sub></td><td align="center"><img src="./screenshots/05b-upload-done.png" width="200" alt="해설 완료"><br><sub>해설 완료</sub></td></tr></table>
+<table><tr><td align="center"><img src="./screenshots/web/03-upload-source.png" width="200" alt="등록 방법 선택"><br><sub>등록 방법 선택</sub></td><td align="center"><img src="./screenshots/web/04-upload-review.png" width="200" alt="미리보기·정보 입력"><br><sub>미리보기·정보 입력</sub></td><td align="center"><img src="./screenshots/web/05-upload-progress.png" width="200" alt="AI 처리 단계"><br><sub>AI 처리 단계</sub></td><td align="center"><img src="./screenshots/web/05b-upload-done.png" width="200" alt="해설 완료"><br><sub>해설 완료</sub></td></tr></table>
 
 ### ② 구조화 결과 — 진단명·검사 항목·처방 약물 항목별 화면
 
@@ -41,7 +41,7 @@
 
 **화면** (웹 미리보기 캡처 · 가상 환자 샘플 데이터)
 
-<table><tr><td align="center"><img src="./screenshots/06-result.png" width="200" alt="정리 결과 · AI 요약"><br><sub>정리 결과 · AI 요약</sub></td><td align="center"><img src="./screenshots/07-result-items.png" width="200" alt="진단명 항목"><br><sub>진단명 항목</sub></td><td align="center"><img src="./screenshots/17-failed.png" width="200" alt="분석 실패 · 다시 분석"><br><sub>분석 실패 · 다시 분석</sub></td></tr></table>
+<table><tr><td align="center"><img src="./screenshots/web/06-result.png" width="200" alt="정리 결과 · AI 요약"><br><sub>정리 결과 · AI 요약</sub></td><td align="center"><img src="./screenshots/web/07-result-items.png" width="200" alt="진단명 항목"><br><sub>진단명 항목</sub></td><td align="center"><img src="./screenshots/web/17-failed.png" width="200" alt="분석 실패 · 다시 분석"><br><sub>분석 실패 · 다시 분석</sub></td></tr></table>
 
 ### ③ 원문 대조 해설 — 원문 문장과 환자 눈높이 해설을 나란히 표시
 
@@ -54,7 +54,7 @@
 
 **화면** (웹 미리보기 캡처 · 가상 환자 샘플 데이터)
 
-<table><tr><td align="center"><img src="./screenshots/08-explanation.png" width="200" alt="원문 ↔ 쉬운 해설 나란히"><br><sub>원문 ↔ 쉬운 해설 나란히</sub></td><td align="center"><img src="./screenshots/09-explanation-labs.png" width="200" alt="용어 풀이 · 관련 항목"><br><sub>용어 풀이 · 관련 항목</sub></td></tr></table>
+<table><tr><td align="center"><img src="./screenshots/web/08-explanation.png" width="200" alt="원문 ↔ 쉬운 해설 나란히"><br><sub>원문 ↔ 쉬운 해설 나란히</sub></td><td align="center"><img src="./screenshots/web/09-explanation-labs.png" width="200" alt="용어 풀이 · 관련 항목"><br><sub>용어 풀이 · 관련 항목</sub></td></tr></table>
 
 ### ④ 검사 수치 시각화 — 참고치 범위와 비교
 
@@ -67,7 +67,7 @@
 
 **화면** (웹 미리보기 캡처 · 가상 환자 샘플 데이터)
 
-<table><tr><td align="center"><img src="./screenshots/10-document-labs.png" width="200" alt="참고치 범위 막대"><br><sub>참고치 범위 막대</sub></td><td align="center"><img src="./screenshots/11-lab-trend.png" width="200" alt="수치 변화 그래프"><br><sub>수치 변화 그래프</sub></td><td align="center"><img src="./screenshots/12-lab-catalog.png" width="200" alt="내 검사 수치"><br><sub>내 검사 수치</sub></td></tr></table>
+<table><tr><td align="center"><img src="./screenshots/web/10-document-labs.png" width="200" alt="참고치 범위 막대"><br><sub>참고치 범위 막대</sub></td><td align="center"><img src="./screenshots/web/11-lab-trend.png" width="200" alt="수치 변화 그래프"><br><sub>수치 변화 그래프</sub></td><td align="center"><img src="./screenshots/web/12-lab-catalog.png" width="200" alt="내 검사 수치"><br><sub>내 검사 수치</sub></td></tr></table>
 
 ### ⑤ 질문 리스트·건강 타임라인
 
@@ -80,7 +80,7 @@
 
 **화면** (웹 미리보기 캡처 · 가상 환자 샘플 데이터)
 
-<table><tr><td align="center"><img src="./screenshots/13-questions.png" width="200" alt="질문 노트"><br><sub>질문 노트</sub></td><td align="center"><img src="./screenshots/14-timeline.png" width="200" alt="건강 타임라인"><br><sub>건강 타임라인</sub></td></tr></table>
+<table><tr><td align="center"><img src="./screenshots/web/13-questions.png" width="200" alt="질문 노트"><br><sub>질문 노트</sub></td><td align="center"><img src="./screenshots/web/14-timeline.png" width="200" alt="건강 타임라인"><br><sub>건강 타임라인</sub></td></tr></table>
 
 ### ⑥ API 연동 — 백엔드·AI 해설 API 연동, 화면 상태 처리
 
@@ -94,7 +94,7 @@
 
 **화면** (웹 미리보기 캡처 · 가상 환자 샘플 데이터)
 
-<table><tr><td align="center"><img src="./screenshots/18-state-loading.png" width="200" alt="로딩 상태"><br><sub>로딩 상태</sub></td><td align="center"><img src="./screenshots/19-state-error.png" width="200" alt="오류 · 다시 시도"><br><sub>오류 · 다시 시도</sub></td><td align="center"><img src="./screenshots/16-settings.png" width="200" alt="설정 · 서비스 연결"><br><sub>설정 · 서비스 연결</sub></td></tr></table>
+<table><tr><td align="center"><img src="./screenshots/web/18-state-loading.png" width="200" alt="로딩 상태"><br><sub>로딩 상태</sub></td><td align="center"><img src="./screenshots/web/19-state-error.png" width="200" alt="오류 · 다시 시도"><br><sub>오류 · 다시 시도</sub></td><td align="center"><img src="./screenshots/web/16-settings.png" width="200" alt="설정 · 서비스 연결"><br><sub>설정 · 서비스 연결</sub></td></tr></table>
 
 ### ⑦ 테스트 빌드·오류 수정 — 베타테스트용 테스트 빌드 제작, 오류 수정 지원
 
@@ -104,6 +104,38 @@
 | 설정·소스 | `eas.json` · `app.json` · `package.json` (scripts) · `src/components/settings/*` · `src/**/__tests__/*` |
 | 문서 | [`docs/BETA_TEST_GUIDE.md`](./BETA_TEST_GUIDE.md) |
 | 검수 방법 | 1. `npm run verify` (타입 검사 · 린트 · 테스트) 통과 확인<br>2. `eas build --profile preview --platform android` 로 APK 생성 → 설치 링크로 기기 설치 → 베타테스트 가이드의 시연 시나리오 수행<br>3. 설정 › 정보에서 앱 버전·빌드 번호·빌드 환경(예: `1.0.0 (7)` · 베타테스트) 확인<br>4. 만든 테스트 빌드는 [베타테스트 가이드 1.6 빌드 기록](./BETA_TEST_GUIDE.md#16-빌드-기록)에 빌드 ID·버전·설치 링크를 남긴다 |
+
+### 구동 확인 — iOS 시뮬레이터 · Android 에뮬레이터
+
+웹 미리보기와 별도로, 모바일 운영체제에서 앱을 직접 실행해 주요 화면을 확인·캡처했습니다. (표시된 환자·병원은 모두 가상 샘플 데이터)
+
+| 구분 | iOS | Android |
+| --- | --- | --- |
+| 기기 | iPhone 17 시뮬레이터 (iOS 27.2) | Pixel 8 에뮬레이터 (Android 16 · API 36) |
+| 실행 방식 | Expo Go 58.0.7 + 개발 서버(Metro) | Expo Go 58.0.6 + 개발 서버(Metro) |
+| 확인일 | 2026-11-25 | 2026-11-25 |
+| 캡처 | [`docs/screenshots/ios/`](./screenshots/ios/) (14장) | [`docs/screenshots/android/`](./screenshots/android/) (19장) |
+| 확인한 흐름 | 온보딩 · 홈 · 등록 방법 · 정리 결과 · 원문 대조 해설 · 검사 수치 · 수치 변화 · 내 검사 수치 · 질문 노트 · 타임라인 · 내 기록 · 설정 · 분석 실패 | 위 화면 전부 + **사진 선택 → 정보 입력 → 업로드 → AI 처리 단계 → 해설 완료 → 정리 결과** 등록 전 과정 |
+
+> iOS 는 화면 이동을 Expo Go 딥링크(앱의 화면 주소와 같은 경로)로 했기 때문에, 시스템 사진 선택 창을 거치는 등록 단계(정보 입력·처리 단계·완료)는 Android 와 웹에서 확인했습니다.
+
+**iOS (iPhone 17 시뮬레이터)**
+
+<table>
+<tr><td align="center"><img src="./screenshots/ios/01-onboarding.png" width="150" alt="온보딩"><br><sub>온보딩</sub></td><td align="center"><img src="./screenshots/ios/02-home.png" width="150" alt="홈"><br><sub>홈</sub></td><td align="center"><img src="./screenshots/ios/03-upload-source.png" width="150" alt="① 등록 방법"><br><sub>① 등록 방법</sub></td><td align="center"><img src="./screenshots/ios/06-result.png" width="150" alt="② 정리 결과"><br><sub>② 정리 결과</sub></td><td align="center"><img src="./screenshots/ios/08-explanation.png" width="150" alt="③ 원문 대조 해설"><br><sub>③ 원문 대조 해설</sub></td></tr>
+<tr><td align="center"><img src="./screenshots/ios/09-explanation-labs.png" width="150" alt="③ 용어·관련 항목"><br><sub>③ 용어·관련 항목</sub></td><td align="center"><img src="./screenshots/ios/10-document-labs.png" width="150" alt="④ 참고치 막대"><br><sub>④ 참고치 막대</sub></td><td align="center"><img src="./screenshots/ios/11-lab-trend.png" width="150" alt="④ 수치 변화"><br><sub>④ 수치 변화</sub></td><td align="center"><img src="./screenshots/ios/12-lab-catalog.png" width="150" alt="④ 내 검사 수치"><br><sub>④ 내 검사 수치</sub></td><td align="center"><img src="./screenshots/ios/13-questions.png" width="150" alt="⑤ 질문 노트"><br><sub>⑤ 질문 노트</sub></td></tr>
+<tr><td align="center"><img src="./screenshots/ios/14-timeline.png" width="150" alt="⑤ 타임라인"><br><sub>⑤ 타임라인</sub></td><td align="center"><img src="./screenshots/ios/15-records.png" width="150" alt="내 기록"><br><sub>내 기록</sub></td><td align="center"><img src="./screenshots/ios/16-settings.png" width="150" alt="⑥ 설정·연결 상태"><br><sub>⑥ 설정·연결 상태</sub></td><td align="center"><img src="./screenshots/ios/17-failed.png" width="150" alt="분석 실패·다시 분석"><br><sub>분석 실패·다시 분석</sub></td></tr>
+</table>
+
+**Android (Pixel 8 에뮬레이터)**
+
+<table>
+<tr><td align="center"><img src="./screenshots/android/01-onboarding.png" width="150" alt="온보딩"><br><sub>온보딩</sub></td><td align="center"><img src="./screenshots/android/01b-consent.png" width="150" alt="동의"><br><sub>동의</sub></td><td align="center"><img src="./screenshots/android/02-home.png" width="150" alt="홈"><br><sub>홈</sub></td><td align="center"><img src="./screenshots/android/03-upload-source.png" width="150" alt="① 등록 방법"><br><sub>① 등록 방법</sub></td><td align="center"><img src="./screenshots/android/04-upload-review.png" width="150" alt="① 정보 입력"><br><sub>① 정보 입력</sub></td></tr>
+<tr><td align="center"><img src="./screenshots/android/05-upload-progress.png" width="150" alt="① AI 처리 단계"><br><sub>① AI 처리 단계</sub></td><td align="center"><img src="./screenshots/android/05b-upload-done.png" width="150" alt="① 해설 완료"><br><sub>① 해설 완료</sub></td><td align="center"><img src="./screenshots/android/06-result.png" width="150" alt="② 정리 결과"><br><sub>② 정리 결과</sub></td><td align="center"><img src="./screenshots/android/07-result-items.png" width="150" alt="② 진단명 항목"><br><sub>② 진단명 항목</sub></td><td align="center"><img src="./screenshots/android/08-explanation.png" width="150" alt="③ 원문 대조 해설"><br><sub>③ 원문 대조 해설</sub></td></tr>
+<tr><td align="center"><img src="./screenshots/android/09-explanation-labs.png" width="150" alt="③ 용어·관련 항목"><br><sub>③ 용어·관련 항목</sub></td><td align="center"><img src="./screenshots/android/10-document-labs.png" width="150" alt="④ 참고치 막대"><br><sub>④ 참고치 막대</sub></td><td align="center"><img src="./screenshots/android/11-lab-trend.png" width="150" alt="④ 수치 변화"><br><sub>④ 수치 변화</sub></td><td align="center"><img src="./screenshots/android/12-lab-catalog.png" width="150" alt="④ 내 검사 수치"><br><sub>④ 내 검사 수치</sub></td><td align="center"><img src="./screenshots/android/13-questions.png" width="150" alt="⑤ 질문 노트"><br><sub>⑤ 질문 노트</sub></td></tr>
+<tr><td align="center"><img src="./screenshots/android/14-timeline.png" width="150" alt="⑤ 타임라인"><br><sub>⑤ 타임라인</sub></td><td align="center"><img src="./screenshots/android/15-records.png" width="150" alt="내 기록"><br><sub>내 기록</sub></td><td align="center"><img src="./screenshots/android/16-settings.png" width="150" alt="⑥ 설정·연결 상태"><br><sub>⑥ 설정·연결 상태</sub></td><td align="center"><img src="./screenshots/android/17-failed.png" width="150" alt="분석 실패·다시 분석"><br><sub>분석 실패·다시 분석</sub></td></tr>
+</table>
+
 
 ---
 
@@ -128,7 +160,7 @@
 | | 베타테스트 가이드 | `docs/BETA_TEST_GUIDE.md` |
 | | 개발 가이드 (코드 컨벤션) | `docs/DEVELOPMENT.md` |
 | | 변경 이력 | `CHANGELOG.md` |
-| | 화면 캡처 (과업별 주요 화면 20장, 웹 미리보기) | `docs/screenshots/` |
+| | 화면 캡처 — 웹 미리보기 20장 · iOS 시뮬레이터 14장 · Android 에뮬레이터 19장 | `docs/screenshots/web/` · `ios/` · `android/` |
 
 > 설치 파일(APK·IPA)은 저장소에 포함하지 않습니다. `eas.json` 의 `preview` 프로필로 언제든 다시 만들 수 있으며, 절차는 베타테스트 가이드에 있습니다.
 > EAS 빌드는 발주처 명의의 Expo 계정(프로젝트 ID `extra.eas.projectId`)과 서명 키로 만들어야 하므로(4. 제약 및 전제사항 5), 제작한 빌드의 ID·버전·설치 링크는 [베타테스트 가이드 1.6 빌드 기록](./BETA_TEST_GUIDE.md#16-빌드-기록)에 기록합니다.
