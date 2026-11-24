@@ -1,0 +1,1117 @@
+openapi: 3.1.0
+info:
+  title: 건강수첩 API (제안안)
+  version: 1.0.0
+  summary: 건강수첩 환자용 앱(MVP) ↔ 창업동아리 백엔드·AI 해설 API 계약
+  description: |
+    건강수첩 환자용 앱(MVP)이 기대하는 REST API 계약입니다. 사람이 읽기 위한 상세 설명은
+    `docs/API_CONTRACT.md` 를 참고하세요.
+
+    - 앱 쪽 기준 코드: `src/api/client.ts`(계약), `src/api/http-client.ts`(HTTP 구현),
+      `src/types/domain.ts`(스키마), `src/api/errors.ts`(오류 코드)
+    - 참조 구현: 앱 내장 데모 서버 `src/api/mock/mock-client.ts`
+
+    **공통 규칙**
+    - 날짜(`DateString`)는 `YYYY-MM-DD`, 시각(`IsoDateTime`)은 ISO 8601(UTC 권장).
+    - 값이 없는 선택 필드는 `null` 대신 생략합니다.
+    - 성공 응답은 리소스 그대로(권장) 또는 `{ "data": ... }`, `{ "data": ..., "meta": ... }` 래핑을 모두 허용합니다.
+      (아래 스키마는 래핑하지 않은 형태입니다.)
+    - 오류 응답은 `{ "error": { "code", "message" } }` 입니다. `VALIDATION` 의 `message` 는 환자에게 그대로 표시됩니다.
+    - 일반 요청 타임아웃은 `EXPO_PUBLIC_API_TIMEOUT_MS`(기본 20초), 업로드는 그 3배입니다.
+    - 처리 중(`uploaded`·`ocr`·`structuring`·`explaining`) 문서는 앱이 `GET /v1/documents/{id}` 를 1.5초마다 폴링합니다.
+servers:
+  - url: https://api.example.com
+    description: 예시 주소 — 앱의 `EXPO_PUBLIC_API_BASE_URL` 에 실제 주소를 지정합니다.
+security:
+  - {}
+  - bearerAuth: []
+tags:
+  - name: system
+    description: 상태 확인
+  - name: documents
+    description: 문서 등록·조회·삭제·재분석 (과업 ①)
+  - name: analysis
+    description: 구조화 결과·원문 대조 해설 (과업 ②③④)
+  - name: labs
+    description: 검사 수치 목록·추이 (과업 ④)
+  - name: questions
+    description: 다음 진료 질문 리스트 (과업 ⑤)
+  - name: timeline
+    description: 건강 타임라인 (과업 ⑤)
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: health
+      summary: 서버·AI 모델 상태
+      description: '`ok: false` 이면 앱은 "점검 중"으로 표시합니다.'
+      parameters:
+        - $ref: '#/components/parameters/XClient'
+      responses:
+        '200':
+          description: 상태 정보
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                ok: true
+                version: 1.0.0
+                modelVersion: health-note-explainer-2026.11
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/documents:
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      summary: 문서 목록
+      description: 진료일(`visitDate`) 내림차순, 같은 날이면 `createdAt` 내림차순으로 정렬합니다.
+      parameters:
+        - $ref: '#/components/parameters/XClient'
+      responses:
+        '200':
+          description: 문서 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MedicalDocument'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [documents]
+      operationId: uploadDocument
+      summary: 문서 등록 (사진·PDF 업로드)
+      description: |
+        - `files` 파트를 페이지 순서대로 1~10개 반복해서 보냅니다 (사진 1장 = 1파트, PDF 1개 = 1파트).
+        - `metadata` 파트에는 `UploadMetadata` 를 JSON 문자열로 보냅니다.
+        - 파일당 최대 20MB. 초과 시 `413`.
+        - 처리는 비동기로 진행되며 응답 문서의 `status` 는 보통 `uploaded` 입니다.
+        - 앱의 업로드 시간 제한은 일반 타임아웃 × 3 + 파일 용량 ÷ 128KB/s 입니다.
+      parameters:
+        - $ref: '#/components/parameters/XClient'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files, metadata]
+              properties:
+                files:
+                  type: array
+                  minItems: 1
+                  maxItems: 10
+                  items:
+                    type: string
+                    contentMediaType: application/octet-stream
+                metadata:
+                  type: string
+                  description: '`UploadMetadata` 를 `JSON.stringify` 한 문자열'
+                  contentMediaType: application/json
+                  contentSchema:
+                    $ref: '#/components/schemas/UploadMetadata'
+            encoding:
+              files:
+                contentType: image/jpeg, image/png, image/heic, image/heif, image/webp, application/pdf
+              metadata:
+                contentType: text/plain
+      responses:
+        '201':
+          description: 등록된 문서 (2xx 모두 허용)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalDocument'
+              example:
+                id: doc_b41d0
+                title: 11월 정기 진료
+                documentType: medical_record
+                hospitalName: 부산내과의원
+                department: 내분비내과
+                visitDate: '2026-11-20'
+                source: camera
+                pageCount: 2
+                thumbnailUri: https://cdn.example.com/documents/doc_b41d0/page-1-thumb.jpg
+                status: uploaded
+                progress: 5
+                createdAt: '2026-11-24T02:10:00.000Z'
+                updatedAt: '2026-11-24T02:10:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/documents/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - $ref: '#/components/parameters/XClient'
+    get:
+      tags: [documents]
+      operationId: getDocument
+      summary: 문서 단건 · 처리 상태 폴링
+      description: 처리 중인 문서는 앱이 1.5초마다 호출해 진행 상태를 갱신합니다.
+      responses:
+        '200':
+          description: 문서
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalDocument'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      summary: 문서 삭제
+      description: 문서·해설을 삭제합니다. 이 문서에서 나온 질문은 삭제하지 않고 `documentId` 연결만 해제합니다.
+      responses:
+        '204':
+          description: 삭제됨 (본문이 있는 200 도 허용)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/documents/{id}/reanalyze:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - $ref: '#/components/parameters/XClient'
+    post:
+      tags: [documents]
+      operationId: reanalyzeDocument
+      summary: 실패 문서 재분석
+      description: '`status === "failed"` 인 문서만 다시 분석합니다. 요청 본문은 없습니다.'
+      responses:
+        '200':
+          description: 재분석을 시작한 문서 (`status` = `uploaded`, `failureReason` 제거)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalDocument'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/documents/{id}/analysis:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - $ref: '#/components/parameters/XClient'
+    get:
+      tags: [analysis]
+      operationId: getAnalysis
+      summary: 구조화 결과 · 원문 대조 해설
+      description: |
+        - `completed` → 200
+        - 처리 중(`uploaded`·`ocr`·`structuring`·`explaining`) 또는 문서 없음 → 404 `NOT_FOUND`
+        - `failed` → 409 `ANALYSIS_FAILED`
+      responses:
+        '200':
+          description: 문서 해설
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentAnalysis'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/AnalysisFailed'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/documents/{id}/question-suggestions:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - $ref: '#/components/parameters/XClient'
+    post:
+      tags: [questions]
+      operationId: suggestQuestions
+      summary: AI 질문 추천 (저장하지 않음)
+      description: 이미 질문 노트에 저장된 문장은 제외합니다. 요청 본문은 없습니다.
+      responses:
+        '200':
+          description: '추천 질문 — `{ "questions": [...] }` 또는 문자열 배열'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSuggestions'
+              example:
+                questions:
+                  - 당화혈색소 목표는 몇 %인가요?
+                  - 콜레스테롤 검사 전에 금식해야 하나요?
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/labs:
+    get:
+      tags: [labs]
+      operationId: listLabCatalog
+      summary: 측정 이력이 있는 검사 항목 목록
+      description: |
+        완료된 문서의 검사 결과를 `code` 별로 집계합니다. `latest*` 는 측정일이 가장 최근인 결과,
+        정렬은 판정 심각도 내림차순 → `category` → `name` 입니다.
+      parameters:
+        - $ref: '#/components/parameters/XClient'
+      responses:
+        '200':
+          description: 검사 항목 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabCatalogItem'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/labs/{code}/trend:
+    parameters:
+      - $ref: '#/components/parameters/LabCode'
+      - $ref: '#/components/parameters/XClient'
+    get:
+      tags: [labs]
+      operationId: getLabTrend
+      summary: 검사 항목별 추이
+      description: '`points` 는 측정일 오름차순, `referenceRange`·`plainExplanation` 은 가장 최근 결과 기준입니다.'
+      responses:
+        '200':
+          description: 검사 추이
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabTrend'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/questions:
+    get:
+      tags: [questions]
+      operationId: listQuestions
+      summary: 질문 목록
+      description: '안 물어본 질문(`isAsked: false`) 먼저, 같은 그룹 안에서는 `createdAt` 내림차순입니다.'
+      parameters:
+        - $ref: '#/components/parameters/XClient'
+        - name: documentId
+          in: query
+          required: false
+          description: 지정하면 해당 문서에서 나온 질문만 반환
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 질문 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Question'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [questions]
+      operationId: createQuestion
+      summary: 질문 등록
+      parameters:
+        - $ref: '#/components/parameters/XClient'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuestionInput'
+            example:
+              text: 당화혈색소 목표는 몇 %인가요?
+              source: ai
+              documentId: doc_8f2k1
+              relatedLabel: 당화혈색소 7.4%
+      responses:
+        '201':
+          description: 등록된 질문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Question'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/questions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+      - $ref: '#/components/parameters/XClient'
+    patch:
+      tags: [questions]
+      operationId: updateQuestion
+      summary: 질문 수정 (물어봄 체크·답변 메모)
+      description: 보낸 필드만 수정합니다. `answerNote` 가 빈 문자열이면 메모를 지웁니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestionInput'
+            example:
+              isAsked: true
+              answerNote: 목표는 6.5% 미만. 3개월 뒤 재검
+      responses:
+        '200':
+          description: 수정된 질문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Question'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [questions]
+      operationId: deleteQuestion
+      summary: 질문 삭제
+      responses:
+        '204':
+          description: 삭제됨 (본문이 있는 200 도 허용)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+  /v1/timeline:
+    get:
+      tags: [timeline]
+      operationId: getTimeline
+      summary: 건강 타임라인
+      description: |
+        완료된 문서만 포함합니다. `date` 내림차순, 같은 날은 `visit` → `diagnosis` → `lab` → `prescription` 순입니다.
+        같은 진단(코드 기준)은 처음 기록된 날에 한 번, 의심 진단이 나중 기록에서 확진되면 그날 `진단 확정: …` 으로 한 번 더 표시합니다.
+        검사 사건 설명은 값과 단위를 띄어 씁니다 (`공복 혈당 110 mg/dL`, 퍼센트만 `7.4%`).
+      parameters:
+        - $ref: '#/components/parameters/XClient'
+      responses:
+        '200':
+          description: 타임라인 사건 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimelineEvent'
+        '5XX':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 선택 사항. 인증 도입 시 앱의 `HttpApiClient` `getAuthToken` 옵션으로 토큰을 주입합니다.
+
+  parameters:
+    DocumentId:
+      name: id
+      in: path
+      required: true
+      description: 문서 ID (앱이 URL 인코딩해서 보냄)
+      schema:
+        type: string
+    QuestionId:
+      name: id
+      in: path
+      required: true
+      description: 질문 ID
+      schema:
+        type: string
+    LabCode:
+      name: code
+      in: path
+      required: true
+      description: 표준화 검사 코드 (예 HBA1C)
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        업로드 중복 방지 키. 앱이 등록 내용(파일·문서 정보)으로 만들며, 사용자가 같은 등록을 '다시 시도'하면 같은 키를 보냅니다.
+        서버는 24시간 안에 같은 키로 다시 받은 요청에 새 문서를 만들지 않고 처음 만든 문서를 그대로 응답합니다 (권장, 미지원 시 무시).
+      schema:
+        type: string
+        maxLength: 64
+        examples: [upload-3f9a0c1e7b2d4a56]
+    XClient:
+      name: X-Client
+      in: header
+      required: false
+      description: 클라이언트 식별 (앱은 항상 `health-note-app/1.0.0` 을 보냄)
+      schema:
+        type: string
+        examples: [health-note-app/1.0.0]
+
+  responses:
+    ValidationError:
+      description: 입력값 오류 — `message` 는 환자에게 그대로 표시되므로 해요체 한국어로 작성합니다.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: VALIDATION
+              message: 병원 이름을 입력해 주세요.
+    NotFound:
+      description: 리소스 없음 (또는 해설 준비 전)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: NOT_FOUND
+              message: document not found
+    AnalysisFailed:
+      description: AI 해설 파이프라인 실패 — 반드시 `error.code` 를 `ANALYSIS_FAILED` 로 보냅니다.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: ANALYSIS_FAILED
+              message: ocr confidence too low
+    PayloadTooLarge:
+      description: 업로드 용량 초과
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: PAYLOAD_TOO_LARGE
+              message: file exceeds 20MB
+    ServerError:
+      description: 서버 오류 — 조회(GET)는 앱이 최대 2회 자동 재시도하고, 변경 요청(POST·PATCH·DELETE)은 재시도하지 않습니다.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: SERVER
+              message: internal error
+
+  schemas:
+    DateString:
+      type: string
+      format: date
+      description: '`YYYY-MM-DD` — 날짜만 의미가 있는 값'
+      examples: ['2026-11-20']
+    IsoDateTime:
+      type: string
+      format: date-time
+      description: ISO 8601 시각 (UTC 권장)
+      examples: ['2026-11-20T01:12:30.000Z']
+
+    DocumentSource:
+      type: string
+      enum: [camera, gallery, pdf]
+      description: 등록 경로 — 촬영 / 사진 / PDF
+    DocumentType:
+      type: string
+      enum: [medical_record, lab_result, prescription, opinion, discharge_summary, other]
+      description: 문서 종류 — 진료기록 / 검사 결과지 / 처방전 / 소견서·진단서 / 퇴원요약지 / 기타 문서
+    ProcessingStatus:
+      type: string
+      enum: [uploaded, ocr, structuring, explaining, completed, failed]
+      description: 처리 상태 — uploaded → ocr → structuring → explaining → completed, 어느 단계든 실패하면 failed
+    DiagnosisStatus:
+      type: string
+      enum: [confirmed, suspected, ruled_out, history]
+      description: 확진 / 의심 / 배제 / 과거력
+    LabFlag:
+      type: string
+      enum: [critical_low, low, normal, high, critical_high]
+      description: 매우 낮음 / 낮음 / 정상 / 높음 / 매우 높음
+    QuestionSource:
+      type: string
+      enum: [ai, user]
+    TimelineEventType:
+      type: string
+      enum: [visit, diagnosis, lab, prescription]
+      description: 진료 / 진단 / 검사 / 처방
+    ApiErrorCode:
+      type: string
+      enum:
+        - NETWORK
+        - TIMEOUT
+        - UNAUTHORIZED
+        - NOT_FOUND
+        - VALIDATION
+        - PAYLOAD_TOO_LARGE
+        - RATE_LIMITED
+        - SERVER
+        - ANALYSIS_FAILED
+        - UNKNOWN
+      description: |
+        서버가 보내는 코드: VALIDATION(400·422), UNAUTHORIZED(401·403), NOT_FOUND(404), ANALYSIS_FAILED(409),
+        PAYLOAD_TOO_LARGE(413), RATE_LIMITED(429), SERVER(5xx). NETWORK·TIMEOUT·UNKNOWN 은 주로 앱이 판단합니다.
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              $ref: '#/components/schemas/ApiErrorCode'
+            message:
+              type: string
+
+    HealthStatus:
+      type: object
+      required: [ok, version]
+      properties:
+        ok:
+          type: boolean
+          description: false 이면 점검 중
+        version:
+          type: string
+          description: 서버 버전
+        modelVersion:
+          type: string
+          description: AI 해설 파이프라인 버전
+
+    DocumentSummaryCounts:
+      type: object
+      required: [diagnosisCount, labCount, abnormalLabCount, medicationCount]
+      properties:
+        diagnosisCount:
+          type: integer
+          minimum: 0
+        labCount:
+          type: integer
+          minimum: 0
+        abnormalLabCount:
+          type: integer
+          minimum: 0
+          description: flag 가 normal 이 아닌 검사 수
+        medicationCount:
+          type: integer
+          minimum: 0
+
+    MedicalDocument:
+      type: object
+      required:
+        - id
+        - title
+        - documentType
+        - hospitalName
+        - visitDate
+        - source
+        - pageCount
+        - status
+        - progress
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        hospitalName:
+          type: string
+        department:
+          type: string
+        visitDate:
+          $ref: '#/components/schemas/DateString'
+        source:
+          $ref: '#/components/schemas/DocumentSource'
+        pageCount:
+          type: integer
+          minimum: 1
+        thumbnailUri:
+          type: string
+          description: 첫 페이지 미리보기 이미지 URL (PDF 는 생략 가능)
+        status:
+          $ref: '#/components/schemas/ProcessingStatus'
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 처리 진행률 — 줄어들지 않아야 함
+        failureReason:
+          type: string
+          description: status 가 failed 일 때 환자에게 보여줄 해요체 안내 문구
+        summary:
+          $ref: '#/components/schemas/DocumentSummaryCounts'
+        createdAt:
+          $ref: '#/components/schemas/IsoDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/IsoDateTime'
+      examples:
+        - id: doc_8f2k1
+          title: 부산내과의원 · 진료기록
+          documentType: medical_record
+          hospitalName: 부산내과의원
+          department: 내분비내과
+          visitDate: '2026-11-20'
+          source: camera
+          pageCount: 2
+          thumbnailUri: https://cdn.example.com/documents/doc_8f2k1/page-1-thumb.jpg
+          status: completed
+          progress: 100
+          summary:
+            diagnosisCount: 2
+            labCount: 3
+            abnormalLabCount: 2
+            medicationCount: 1
+          createdAt: '2026-11-20T01:12:30.000Z'
+          updatedAt: '2026-11-20T01:12:41.000Z'
+
+    UploadMetadata:
+      type: object
+      description: 업로드 `metadata` 파트 (UploadDocumentInput 에서 files 를 뺀 값)
+      required: [source, documentType, hospitalName, visitDate]
+      properties:
+        source:
+          $ref: '#/components/schemas/DocumentSource'
+        documentType:
+          $ref: '#/components/schemas/DocumentType'
+        hospitalName:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: 앞뒤 공백 제거 후 1~40자
+        department:
+          type: string
+          maxLength: 20
+        visitDate:
+          $ref: '#/components/schemas/DateString'
+        title:
+          type: string
+          maxLength: 60
+          description: 비어 있으면 서버가 `{병원명} · {문서 종류 라벨}` 로 생성
+
+    Diagnosis:
+      type: object
+      required: [id, name, originalTerm, status, plainExplanation, sentenceIds]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 환자용 한글 진단명
+        originalTerm:
+          type: string
+          description: 원문 표기
+        code:
+          type: string
+          description: KCD-8 코드
+        status:
+          $ref: '#/components/schemas/DiagnosisStatus'
+        plainExplanation:
+          type: string
+        sentenceIds:
+          type: array
+          items:
+            type: string
+          description: 근거가 된 ExplainedSentence.id
+
+    ReferenceRange:
+      type: object
+      required: [text]
+      properties:
+        low:
+          type: number
+          description: 하한 (없으면 상한만 있는 항목)
+        high:
+          type: number
+          description: 상한 (없으면 하한만 있는 항목)
+        text:
+          type: string
+          description: |
+            결과지 원문 표기 (예 4.0-6.0, <100, >=60).
+            수치형 결과만 계약 범위입니다 — 음성/양성·1+ 같은 정성 결과는 이번 MVP 계약에서 보내지 않습니다.
+
+    LabResult:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - originalName
+        - category
+        - value
+        - unit
+        - referenceRange
+        - flag
+        - measuredAt
+        - plainExplanation
+        - sentenceIds
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+          description: 표준화 검사 코드 — 문서가 달라도 같은 검사는 같은 값 (추이 묶음 기준)
+        name:
+          type: string
+        originalName:
+          type: string
+        category:
+          type: string
+          description: 검사 분류 (당뇨, 지질, 간기능, 신장기능, 혈액 등)
+        value:
+          type: number
+        unit:
+          type: string
+        referenceRange:
+          $ref: '#/components/schemas/ReferenceRange'
+        flag:
+          $ref: '#/components/schemas/LabFlag'
+        measuredAt:
+          $ref: '#/components/schemas/DateString'
+        plainExplanation:
+          type: string
+        sentenceIds:
+          type: array
+          items:
+            type: string
+
+    Medication:
+      type: object
+      required:
+        - id
+        - name
+        - ingredient
+        - originalText
+        - dose
+        - frequency
+        - purpose
+        - cautions
+        - sentenceIds
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 제품명
+        ingredient:
+          type: string
+          description: 성분명
+        originalText:
+          type: string
+        dose:
+          type: string
+          description: 1회 복용량
+        frequency:
+          type: string
+          description: 복용 방법
+        durationDays:
+          type: integer
+          minimum: 1
+        purpose:
+          type: string
+          description: 왜 먹는 약인지 쉬운 설명
+        cautions:
+          type: array
+          items:
+            type: string
+        sentenceIds:
+          type: array
+          items:
+            type: string
+
+    GlossaryTerm:
+      type: object
+      required: [term, meaning]
+      properties:
+        term:
+          type: string
+        meaning:
+          type: string
+
+    ExplainedSentence:
+      type: object
+      required: [id, order, section, original, plain, terms, confidence, relatedItemIds]
+      properties:
+        id:
+          type: string
+        order:
+          type: integer
+          description: 원문 순서
+        section:
+          type: string
+          description: 원문 구역 (주호소, 현병력, 검사 결과, 진단, 처방, 향후 계획 등)
+        original:
+          type: string
+          description: 진료기록 원문 문장
+        plain:
+          type: string
+          description: 환자 눈높이 해설
+        terms:
+          type: array
+          items:
+            $ref: '#/components/schemas/GlossaryTerm'
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: AI 해설 신뢰도 — 0.7 미만이면 앱이 "의료진 확인 권장" 표시
+        relatedItemIds:
+          type: array
+          items:
+            type: string
+          description: 관련 Diagnosis/LabResult/Medication id
+
+    DocumentAnalysis:
+      type: object
+      required:
+        - documentId
+        - generatedAt
+        - modelVersion
+        - overallSummary
+        - diagnoses
+        - labResults
+        - medications
+        - sentences
+        - suggestedQuestions
+        - disclaimer
+      properties:
+        documentId:
+          type: string
+        generatedAt:
+          $ref: '#/components/schemas/IsoDateTime'
+        modelVersion:
+          type: string
+        overallSummary:
+          type: string
+          description: 문서 전체 3~4문장 요약
+        diagnoses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Diagnosis'
+        labResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/LabResult'
+        medications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medication'
+        sentences:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExplainedSentence'
+        suggestedQuestions:
+          type: array
+          items:
+            type: string
+        disclaimer:
+          type: string
+
+    LabTrendPoint:
+      type: object
+      required: [documentId, labResultId, measuredAt, value, flag]
+      properties:
+        documentId:
+          type: string
+        labResultId:
+          type: string
+        measuredAt:
+          $ref: '#/components/schemas/DateString'
+        value:
+          type: number
+        flag:
+          $ref: '#/components/schemas/LabFlag'
+
+    LabTrend:
+      type: object
+      required: [code, name, originalName, category, unit, referenceRange, points, plainExplanation]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        originalName:
+          type: string
+        category:
+          type: string
+        unit:
+          type: string
+        referenceRange:
+          $ref: '#/components/schemas/ReferenceRange'
+        points:
+          type: array
+          description: 측정일 오름차순
+          items:
+            $ref: '#/components/schemas/LabTrendPoint'
+        plainExplanation:
+          type: string
+
+    LabCatalogItem:
+      type: object
+      required:
+        - code
+        - name
+        - originalName
+        - category
+        - unit
+        - latestValue
+        - latestFlag
+        - latestMeasuredAt
+        - count
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        originalName:
+          type: string
+        category:
+          type: string
+        unit:
+          type: string
+        latestValue:
+          type: number
+        latestFlag:
+          $ref: '#/components/schemas/LabFlag'
+        latestMeasuredAt:
+          $ref: '#/components/schemas/DateString'
+        count:
+          type: integer
+          minimum: 1
+        recentValues:
+          type: array
+          maxItems: 6
+          items:
+            type: number
+          description: 최근 측정값 (측정일 오름차순, 최대 6개). 목록의 작은 추이 표시용 — 선택 필드
+
+    Question:
+      type: object
+      required: [id, text, source, isAsked, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+          minLength: 1
+          maxLength: 300
+        source:
+          $ref: '#/components/schemas/QuestionSource'
+        documentId:
+          type: string
+          description: 질문이 나온 문서
+        relatedLabel:
+          type: string
+          description: 관련 항목 표시용 라벨 (예 당화혈색소 7.4%)
+        isAsked:
+          type: boolean
+          description: 진료 때 물어봤는지
+        answerNote:
+          type: string
+          maxLength: 500
+          description: 의사에게 들은 답변 메모
+        createdAt:
+          $ref: '#/components/schemas/IsoDateTime'
+        updatedAt:
+          $ref: '#/components/schemas/IsoDateTime'
+
+    CreateQuestionInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 앞뒤 공백 제거 후 1~300자
+        source:
+          $ref: '#/components/schemas/QuestionSource'
+        documentId:
+          type: string
+        relatedLabel:
+          type: string
+
+    UpdateQuestionInput:
+      type: object
+      minProperties: 1
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 300
+        isAsked:
+          type: boolean
+        answerNote:
+          type: string
+          maxLength: 500
+          description: 앞뒤 공백 제거 후 최대 500자. 빈 문자열이면 메모 삭제
+
+    QuestionSuggestions:
+      oneOf:
+        - type: object
+          required: [questions]
+          properties:
+            questions:
+              type: array
+              items:
+                type: string
+        - type: array
+          items:
+            type: string
+
+    TimelineEvent:
+      type: object
+      required: [id, date, type, title, description, documentId, hospitalName]
+      properties:
+        id:
+          type: string
+          description: 목록 안에서 고유
+        date:
+          $ref: '#/components/schemas/DateString'
+        type:
+          $ref: '#/components/schemas/TimelineEventType'
+        title:
+          type: string
+        description:
+          type: string
+        documentId:
+          type: string
+        hospitalName:
+          type: string
+        department:
+          type: string
+        labCode:
+          type: string
+          description: type 이 lab 일 때 연결할 검사 코드
+        flag:
+          $ref: '#/components/schemas/LabFlag'
