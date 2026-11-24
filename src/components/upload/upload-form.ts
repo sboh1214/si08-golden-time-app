@@ -3,7 +3,7 @@
  */
 import { isValidDateString, toDateString, todayString } from '@/lib/format';
 import { DOCUMENT_TYPE_LABEL } from '@/lib/labels';
-import type { DocumentFile, DocumentSource, DocumentType, UploadDocumentInput } from '@/types/domain';
+import type { DocumentFile, DocumentSource, DocumentType, MedicalDocument, UploadDocumentInput } from '@/types/domain';
 
 export interface UploadFormValues {
   documentType: DocumentType;
@@ -84,6 +84,33 @@ export function validateUploadForm(values: UploadFormValues, today: string = tod
 
 export function hasErrors(errors: UploadFormErrors): boolean {
   return Object.values(errors).some(Boolean);
+}
+
+export interface RecentHospital {
+  hospitalName: string;
+  /** 그 병원에서 가장 최근에 받은 기록의 진료과 (없으면 undefined) */
+  department?: string;
+}
+
+/**
+ * 최근 방문한 병원 (진료일 최신순, 같은 병원은 한 번만) — 같은 병원을 반복 방문하는 환자가
+ * 병원 이름을 매번 입력하지 않도록 빠른 선택에 쓴다.
+ */
+export function recentHospitals(
+  documents: Pick<MedicalDocument, 'hospitalName' | 'department' | 'visitDate'>[],
+  limit = 4,
+): RecentHospital[] {
+  const sorted = [...documents].sort((a, b) => b.visitDate.localeCompare(a.visitDate));
+  const seen = new Set<string>();
+  const result: RecentHospital[] = [];
+  for (const doc of sorted) {
+    const name = doc.hospitalName.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    result.push({ hospitalName: name, department: doc.department?.trim() || undefined });
+    if (result.length >= limit) break;
+  }
+  return result;
 }
 
 /** 제목을 비워 두었을 때 서버가 만드는 제목과 같은 형식 (`병원명 · 문서종류`) */

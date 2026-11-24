@@ -56,13 +56,9 @@ export function Screen({
   testID,
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
-  const inner = [
-    styles.inner,
-    wide && styles.wide,
-    padded && styles.padded,
-    safeTop && { paddingTop: insets.top + Spacing.lg },
-    contentStyle,
-  ];
+  const inner = [styles.inner, wide && styles.wide, padded && styles.padded];
+  // 헤더 없는 화면의 상단 안전 영역(상태 표시줄·노치). 스크롤 기본 여백보다 뒤에 둬야 덮어써지지 않는다
+  const topInset = safeTop ? { paddingTop: insets.top + Spacing.lg } : null;
 
   const body = scroll ? (
     <ScrollView
@@ -70,7 +66,9 @@ export function Screen({
       contentContainerStyle={[
         inner,
         styles.scrollContent,
+        topInset,
         !footer && safeBottom && { paddingBottom: insets.bottom + Spacing.xxl },
+        contentStyle,
       ]}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -82,7 +80,9 @@ export function Screen({
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.flex, inner, !footer && safeBottom && { paddingBottom: insets.bottom }]}>{children}</View>
+    <View style={[styles.flex, inner, topInset, !footer && safeBottom && { paddingBottom: insets.bottom }, contentStyle]}>
+      {children}
+    </View>
   );
 
   const content = (

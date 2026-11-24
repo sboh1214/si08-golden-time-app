@@ -4,6 +4,7 @@ import {
   daysAgoString,
   formatDateInput,
   hasErrors,
+  recentHospitals,
   toUploadInput,
   validateUploadForm,
   validateVisitDate,
@@ -119,5 +120,30 @@ describe('toUploadInput', () => {
     );
     expect(input.department).toBe('내과');
     expect(input.title).toBe('정기 검진');
+  });
+});
+
+describe('recentHospitals', () => {
+  const doc = (hospitalName: string, visitDate: string, department?: string) => ({ hospitalName, visitDate, department });
+
+  it('진료일 최신순으로 병원을 한 번씩만, 그 병원의 최근 진료과와 함께 돌려준다', () => {
+    expect(
+      recentHospitals([
+        doc('바른숲내과의원', '2025-11-20', '내과'),
+        doc('새빛종합병원', '2026-10-13', '내분비내과'),
+        doc('바른숲내과의원', '2026-11-18'),
+        doc('  ', '2026-11-19'),
+        doc('한결가정의학과의원', '2026-06-16', '가정의학과'),
+      ]),
+    ).toEqual([
+      { hospitalName: '바른숲내과의원', department: undefined },
+      { hospitalName: '새빛종합병원', department: '내분비내과' },
+      { hospitalName: '한결가정의학과의원', department: '가정의학과' },
+    ]);
+  });
+
+  it('개수 제한을 지킨다', () => {
+    const docs = ['가', '나', '다', '라', '마'].map((n, i) => doc(`${n}의원`, `2026-01-0${i + 1}`));
+    expect(recentHospitals(docs, 2).map((h) => h.hospitalName)).toEqual(['마의원', '라의원']);
   });
 });

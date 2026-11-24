@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/states/empty-state';
 import { AppText } from '@/components/ui/app-text';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
 import { ChoiceChips, type ChoiceOption } from '@/components/ui/choice-chips';
 import type { IconName } from '@/components/ui/icon';
 import { Screen } from '@/components/ui/screen';
@@ -22,15 +23,17 @@ import {
   INITIAL_UPLOAD_FORM,
   autoTitle,
   hasErrors,
+  recentHospitals,
   toUploadInput,
   validateUploadForm,
+  type RecentHospital,
   type UploadFormField,
   type UploadFormValues,
 } from '@/components/upload/upload-form';
 import { UploadProgressPanel } from '@/components/upload/upload-progress-panel';
 import { useFilePicker } from '@/components/upload/use-file-picker';
 import { Spacing } from '@/constants/theme';
-import { useUploadDocument } from '@/hooks/api';
+import { useDocuments, useUploadDocument } from '@/hooks/api';
 import { useToday } from '@/hooks/use-today';
 import { confirm, notify } from '@/lib/dialog';
 import { formatDateLong, isValidDateString } from '@/lib/format';
@@ -62,6 +65,7 @@ export default function UploadReviewScreen() {
   const source = useUploadDraft((s) => s.source);
   const { picking, pick } = useFilePicker();
   const upload = useUploadDocument();
+  const documents = useDocuments();
 
   const [values, setValues] = useState<UploadFormValues>(INITIAL_UPLOAD_FORM);
   const [touched, setTouched] = useState<Partial<Record<TouchableField, boolean>>>({});
@@ -98,6 +102,20 @@ export default function UploadReviewScreen() {
   const setField = <K extends UploadFormField>(field: K, value: UploadFormValues[K]) =>
     setValues((prev) => ({ ...prev, [field]: value }));
   const markTouched = (field: TouchableField) => setTouched((prev) => ({ ...prev, [field]: true }));
+
+  const hospitalShortcuts = recentHospitals(documents.data ?? []).filter(
+    (h) => h.hospitalName !== values.hospitalName.trim(),
+  );
+  const pickHospital = (hospital: RecentHospital) => {
+    haptics.selection();
+    setValues((prev) => ({
+      ...prev,
+      hospitalName: hospital.hospitalName,
+      // 진료과가 비어 있을 때만 그 병원의 최근 진료과로 채운다
+      department: prev.department.trim() ? prev.department : (hospital.department ?? ''),
+    }));
+    markTouched('hospitalName');
+  };
 
   const remaining = MAX_PAGES - files.length;
   const isPdf = source === 'pdf';
@@ -252,6 +270,23 @@ export default function UploadReviewScreen() {
               accessibilityLabel="병원 이름 (필수)"
               testID="upload-hospital"
             />
+            {hospitalShortcuts.length > 0 ? (
+              <View style={styles.shortcuts} accessibilityLabel="최근 방문한 병원">
+                <AppText variant="caption" color="textTertiary">
+                  최근 방문
+                </AppText>
+                {hospitalShortcuts.map((hospital) => (
+                  <Chip
+                    key={hospital.hospitalName}
+                    label={hospital.hospitalName}
+                    icon="time-outline"
+                    onPress={() => pickHospital(hospital)}
+                    disabled={uploading}
+                    testID="upload-recent-hospital"
+                  />
+                ))}
+              </View>
+            ) : null}
           </FormField>
 
           <FormField
@@ -307,4 +342,5 @@ export default function UploadReviewScreen() {
 
 const styles = StyleSheet.create({
   form: { gap: Spacing.xxl },
+  shortcuts: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
 });
